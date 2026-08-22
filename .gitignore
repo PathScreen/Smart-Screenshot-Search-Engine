@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+screenshot_gpu/
+
+# Large screenshot datasets
+Addresses_Locations/
+Interior_Design/
+Products_Shopping/
+Receipts_Bills/
+Recipes/
+Tickets_Bookings/
+Smart_Screenshot_700_NEW/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Old app backups
+app_backup1.py
+app_old_2392.py
