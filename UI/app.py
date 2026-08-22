@@ -1521,15 +1521,14 @@ if search_button:
                     # ================================================= 
  
                     image_path = os.path.join(
-                    PROJECT_ROOT,
-                    str(row["filepath"])
+                        PROJECT_ROOT,
+                        str(row["filepath"]).replace("\\", "/")
                     )
- 
+
                     image = Image.open(
-                    image_path
+                       image_path
                     ).convert("RGB")
- 
- 
+
                     # ================================================= 
                     # IMAGE 
                     # ================================================= 
