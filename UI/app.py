@@ -15,11 +15,9 @@ from PIL import Image
 # PROJECT ROOT
 # ============================================================
 
-PROJECT_ROOT = (
-    r"C:\Users\Priyanka\OneDrive\Desktop"
-    r"\Smart_Screenshot_Search_Engine - Copy"
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
 )
-
 
 # ============================================================
 # PATHS 
