@@ -1520,14 +1520,14 @@ if search_button:
                     # IMAGE PATH 
                     # ================================================= 
  
-                    image_path = str( 
-                        row["filepath"] 
-                    ) 
+                    image_path = os.path.join(
+                    PROJECT_ROOT,
+                    str(row["filepath"])
+                    )
  
- 
-                    image = Image.open( 
-                        image_path 
-                    ).convert("RGB") 
+                    image = Image.open(
+                    image_path
+                    ).convert("RGB")
  
  
                     # ================================================= 
