@@ -3,38 +3,74 @@ import pandas as pd
 import numpy as np 
 import torch 
 import re 
+import os
  
 from sentence_transformers import SentenceTransformer 
 from sklearn.metrics.pairwise import cosine_similarity 
 from transformers import CLIPProcessor, CLIPModel 
 from PIL import Image 
- 
- 
+
+
+# ============================================================
+# PROJECT ROOT
+# ============================================================
+
+PROJECT_ROOT = (
+    r"C:\Users\Priyanka\OneDrive\Desktop"
+    r"\Smart_Screenshot_Search_Engine - Copy"
+)
+
+
 # ============================================================
 # PATHS 
 # ============================================================ 
  
-PROJECT_ROOT = ( 
-    r"C:\Users\Priyanka\OneDrive\Desktop" 
-    r"\Smart_Screenshot_Search_Engine - Copy" 
+SEMANTIC_METADATA_PATH = os.path.join(
+    PROJECT_ROOT,
+    "Data",
+    "metadata_ocr_3150.csv"
+)
+
+SEMANTIC_EMBEDDINGS_PATH = os.path.join(
+    PROJECT_ROOT,
+    "Data",
+    "screenshot_embeddings_3150.npy"
+)
+
+VISUAL_METADATA_PATH = os.path.join(
+    PROJECT_ROOT,
+    "Data",
+    "metadata_4000.csv"
+)
+
+VISUAL_EMBEDDINGS_PATH = os.path.join(
+    PROJECT_ROOT,
+    "Data",
+    "visual_embeddings_4000.npy"
 ) 
- 
-SEMANTIC_METADATA_PATH = ( 
-    PROJECT_ROOT + r"\Data\metadata_ocr_3150.csv" 
+SEMANTIC_METADATA_PATH = os.path.join(
+    PROJECT_ROOT,
+    "Data",
+    "metadata_ocr_3150.csv"
+)
+
+SEMANTIC_EMBEDDINGS_PATH = os.path.join(
+    PROJECT_ROOT,
+    "Data",
+    "screenshot_embeddings_3150.npy"
+)
+
+VISUAL_METADATA_PATH = os.path.join(
+    PROJECT_ROOT,
+    "Data",
+    "metadata_4000.csv"
+)
+
+VISUAL_EMBEDDINGS_PATH = os.path.join(
+    PROJECT_ROOT,
+    "Data",
+    "visual_embeddings_4000.npy"
 ) 
- 
-SEMANTIC_EMBEDDINGS_PATH = ( 
-    PROJECT_ROOT + r"\Data\screenshot_embeddings_3150.npy" 
-) 
- 
-VISUAL_METADATA_PATH = ( 
-    PROJECT_ROOT + r"\Data\metadata_4000.csv" 
-) 
- 
-VISUAL_EMBEDDINGS_PATH = ( 
-    PROJECT_ROOT + r"\Data\visual_embeddings_4000.npy" 
-) 
- 
  
 # ============================================================
 # PAGE CONFIG 
