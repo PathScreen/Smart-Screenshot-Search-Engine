@@ -105,17 +105,5 @@ Smart-Screenshot-Search-Engine/
 ├── UI/
 ├── requirements.txt
 └── .gitignore
-
-## Running the Project
-
-Install the required Python libraries:
-
-```bash
-pip install -r requirements.txt
-
-## Running the Project
-
-Install the required Python libraries:
-
 ```bash
 pip install -r requirements.txt
