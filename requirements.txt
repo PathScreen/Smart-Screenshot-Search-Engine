@@ -7,3 +7,4 @@ sentence-transformers
 scikit-learn
 transformers
 Pillow
+easyocr
