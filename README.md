@@ -1,18 +1,25 @@
-# 🖼️ Smart Screenshot Search Engine
+# 👁️ VisionX
 
-Smart Screenshot Search Engine is a project I developed to make it easier to find and organize screenshots from a large collection.
+VisionX is a project I developed to make it easier to find and organize screenshots from a large collection.
 
 Instead of manually checking screenshots one by one, the system allows users to search screenshots using the text present in them, their meaning, and their visual content.
 
 The project uses **OCR, semantic search, visual search using CLIP, and CNN-based classification**.
 
+## 🚀 Live Demo
+
+**Try VisionX:**  
+https://smart-screenshot-search-engine-hdfwwsszixlnz3uo2bff2z.streamlit.app/
+
 ## Features
 
 * **OCR Search** – Extracts text from screenshots using EasyOCR and allows searching based on that text.
 * **Semantic Search** – Finds screenshots based on the meaning of the search query using Sentence Transformers.
-* **Visual Search** – Finds visually similar screenshots using CLIP.
+* **Visual Search** – Uses CLIP to find visually relevant screenshots.
 * **CNN Classification** – Classifies screenshots into six predefined categories.
 * **Category Filtering** – Allows screenshots to be explored category-wise.
+* **Upload New Screenshots** – Users can upload a new screenshot and select its category.
+* **Automatic Indexing** – Uploaded screenshots are processed using OCR and embedding models and added to the search indexes.
 * **Streamlit Interface** – Provides the user interface for searching and viewing screenshots.
 
 ## Dataset
@@ -55,17 +62,35 @@ The extracted OCR text is converted into numerical embeddings using the **Senten
 
 When a user enters a search query, the query is also converted into an embedding. Cosine similarity is then used to find screenshots with similar meaning.
 
+Exact matches in the extracted OCR text are also given importance while ranking the results.
+
 ### 3. Visual Search
 
 For visual search, **CLIP** is used to generate image embeddings.
 
-The visual embedding of the query/image is compared with screenshot embeddings to find visually similar screenshots.
+These embeddings are compared with the stored screenshot embeddings to find visually relevant screenshots.
+
+The project uses the **`openai/clip-vit-base-patch32`** model.
 
 ### 4. CNN Classification
 
 A CNN model built using **PyTorch** is used to classify screenshots into the six categories.
 
 The dataset was divided into training, validation and testing sets, and data augmentation was used during training.
+
+### 5. Upload and Indexing
+
+Users can upload a new screenshot through the application and select its category.
+
+After uploading, the system:
+
+1. Saves the screenshot in the selected category.
+2. Extracts text using EasyOCR.
+3. Generates a semantic embedding using Sentence Transformers.
+4. Generates a visual embedding using CLIP.
+5. Updates the metadata and embedding indexes.
+
+The uploaded screenshot can then be included in future searches.
 
 ## Project Structure
 
@@ -80,64 +105,3 @@ Smart-Screenshot-Search-Engine/
 ├── UI/
 ├── requirements.txt
 └── .gitignore
-```
-
-## Running the Project
-
-First install the required Python libraries:
-
-```bash
-pip install -r requirements.txt
-```
-
-Then run the Streamlit application:
-
-```bash
-streamlit run UI/app.py
-```
-
-The application will open in the browser.
-
-## Project Interface
-
-The Streamlit interface provides:
-
-* Search settings
-* Category filtering
-* Number of results selection
-* Dataset overview
-* Category distribution
-* Screenshot search results
-* OCR text viewing
-* Full screenshot viewing
-
-## Project Goal
-
-The main goal of this project is to make screenshot collections easier to search.
-
-A user should be able to enter a query such as a **place, product, recipe, receipt, ticket, or other information**, and get the most relevant screenshots without manually going through the entire collection.
-
-## Future Improvements
-
-Some possible improvements for the project are:
-
-* Improve CNN classification accuracy
-* Add support for more screenshot categories
-* Improve OCR accuracy for different fonts and languages
-* Improve the visual and semantic search combination
-* Deploy the application for easier access
-
-## Demo
-
-The project is also deployed using Streamlit.
-
-**Live Demo:**
-https://smart-screenshot-search-engine-hdfwwsszixlnz3uo2bff2z.streamlit.app/
-
-## Author
-
-**Priyanka Ghogare**
-
-Computer Engineering Student
-
-This project was developed as part of my academic/project work.
