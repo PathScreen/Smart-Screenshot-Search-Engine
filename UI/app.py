@@ -8,8 +8,8 @@ import os
 from sentence_transformers import SentenceTransformer 
 from sklearn.metrics.pairwise import cosine_similarity 
 from transformers import CLIPProcessor, CLIPModel 
-from PIL import Image 
-
+from PIL import Image
+import easyocr
 
 # ============================================================
 # PROJECT ROOT
@@ -46,36 +46,14 @@ VISUAL_EMBEDDINGS_PATH = os.path.join(
     "Data",
     "visual_embeddings_4000.npy"
 ) 
-SEMANTIC_METADATA_PATH = os.path.join(
-    PROJECT_ROOT,
-    "Data",
-    "metadata_ocr_3150.csv"
-)
-
-SEMANTIC_EMBEDDINGS_PATH = os.path.join(
-    PROJECT_ROOT,
-    "Data",
-    "screenshot_embeddings_3150.npy"
-)
-
-VISUAL_METADATA_PATH = os.path.join(
-    PROJECT_ROOT,
-    "Data",
-    "metadata_4000.csv"
-)
-
-VISUAL_EMBEDDINGS_PATH = os.path.join(
-    PROJECT_ROOT,
-    "Data",
-    "visual_embeddings_4000.npy"
-) 
+ 
  
 # ============================================================
 # PAGE CONFIG 
 # ============================================================ 
  
 st.set_page_config( 
-    page_title="Smart Screenshot Search Engine", 
+    page_title="VisionX", 
     page_icon="🔍", 
     layout="wide", 
     initial_sidebar_state="expanded" 
@@ -227,9 +205,9 @@ st.markdown(
     div[data-testid="stTextInput"] input:focus { 
         border-color: #6366f1; 
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); 
-    } 
- 
- 
+    }
+      
+    
     /* ======================================================== 
        BUTTONS 
        ======================================================== */ 
@@ -255,7 +233,8 @@ st.markdown(
     div.stButton > button span { 
         color: #ffffff !important; 
     } 
- 
+    
+     
  
     /* ======================================================== 
        RESULTS 
@@ -494,7 +473,579 @@ def load_clip_model():
  
     return model, processor, device 
    
+# ============================================================
+# LOAD OCR READER
+# ============================================================
+
+@st.cache_resource
+def load_ocr_reader():
+
+    return easyocr.Reader(
+        ["en"],
+        gpu=torch.cuda.is_available()
+    )
  
+# ============================================================
+# OCR FUNCTION FOR UPLOADED IMAGE
+# ============================================================
+
+def extract_ocr_text(image_path):
+
+    reader = load_ocr_reader()
+
+    results = reader.readtext(
+        image_path,
+        detail=0,
+        paragraph=True
+    )
+
+    return " ".join(results).strip()
+
+# ============================================================
+# GENERATE SEMANTIC EMBEDDING
+# ============================================================
+
+def generate_semantic_embedding(text):
+
+    embedding = semantic_model.encode(
+        text,
+        convert_to_numpy=True
+    )
+
+    return embedding.astype(np.float32)
+
+# ============================================================
+# EMBEDDING FUNCTIONS FOR UPLOADED IMAGE
+# ============================================================
+
+def generate_visual_embedding(image):
+
+    inputs = clip_processor(
+        images=image,
+        return_tensors="pt"
+    )
+
+    inputs = {
+        key: value.to(clip_device)
+        for key, value in inputs.items()
+    }
+
+    with torch.no_grad():
+
+        vision_outputs = clip_model.vision_model(
+            pixel_values=inputs["pixel_values"]
+        )
+
+        pooled_output = vision_outputs.pooler_output
+
+        image_features = clip_model.visual_projection(
+            pooled_output
+        )
+
+    embedding = image_features.cpu().numpy()[0]
+
+    embedding = embedding / np.linalg.norm(
+        embedding
+    )
+
+    return embedding.astype(np.float32)
+
+# ============================================================
+# PROCESS AND SAVE UPLOADED IMAGE
+# ============================================================
+
+def process_uploaded_image(uploaded_file, category):
+
+    # --------------------------------------------------------
+    # DATA PATHS
+    # --------------------------------------------------------
+
+    category_folder = os.path.join(
+        PROJECT_ROOT,
+        "Data",
+        category
+    )
+
+    # --------------------------------------------------------
+    # FILE NAME VALIDATION
+    # --------------------------------------------------------
+
+    original_name = os.path.basename(
+        uploaded_file.name
+    )
+
+    name, extension = os.path.splitext(
+        original_name
+    )
+
+    extension = extension.lower()
+
+    if extension not in [
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp"
+    ]:
+
+        raise ValueError(
+            "Only JPG, JPEG, PNG and WEBP images are supported."
+        )
+
+    # --------------------------------------------------------
+    # LOAD CURRENT DATA FIRST
+    # --------------------------------------------------------
+
+    current_semantic_df = pd.read_csv(
+        SEMANTIC_METADATA_PATH
+    )
+
+    current_visual_df = pd.read_csv(
+        VISUAL_METADATA_PATH
+    )
+
+    current_semantic_embeddings = np.load(
+        SEMANTIC_EMBEDDINGS_PATH
+    )
+
+    current_visual_embeddings = np.load(
+        VISUAL_EMBEDDINGS_PATH
+    )
+
+    # --------------------------------------------------------
+    # SAFETY CHECK:
+    # CSV AND NPY MUST ALREADY MATCH
+    # --------------------------------------------------------
+
+    if len(current_semantic_df) != len(
+        current_semantic_embeddings
+    ):
+
+        raise ValueError(
+            "Semantic metadata and embeddings are already "
+            "mismatched. Upload cancelled."
+        )
+
+    if len(current_visual_df) != len(
+        current_visual_embeddings
+    ):
+
+        raise ValueError(
+            "Visual metadata and embeddings are already "
+            "mismatched. Upload cancelled."
+        )
+
+    # --------------------------------------------------------
+    # CHECK EMBEDDING DIMENSIONS
+    # --------------------------------------------------------
+
+    if current_semantic_embeddings.ndim != 2:
+
+        raise ValueError(
+            "Semantic embeddings must be a 2-dimensional array."
+        )
+
+    if current_visual_embeddings.ndim != 2:
+
+        raise ValueError(
+            "Visual embeddings must be a 2-dimensional array."
+        )
+
+    if current_semantic_embeddings.shape[1] != 384:
+
+        raise ValueError(
+            "Semantic embedding dataset must contain 384-dimensional embeddings."
+        )
+
+    if current_visual_embeddings.shape[1] != 512:
+
+        raise ValueError(
+            "Visual embedding dataset must contain 512-dimensional embeddings."
+        )
+
+    # --------------------------------------------------------
+    # CHECK METADATA COLUMNS
+    # --------------------------------------------------------
+
+    required_semantic_columns = {
+        "filename",
+        "filepath",
+        "category",
+        "ocr_text"
+    }
+
+    required_visual_columns = {
+        "filename",
+        "filepath",
+        "category"
+    }
+
+    if not required_semantic_columns.issubset(
+        current_semantic_df.columns
+    ):
+
+        raise ValueError(
+            "Semantic metadata CSV does not contain "
+            "the expected columns."
+        )
+
+    if not required_visual_columns.issubset(
+        current_visual_df.columns
+    ):
+
+        raise ValueError(
+            "Visual metadata CSV does not contain "
+            "the expected columns."
+        )
+
+    # --------------------------------------------------------
+    # CREATE CATEGORY FOLDER
+    # --------------------------------------------------------
+
+    os.makedirs(
+        category_folder,
+        exist_ok=True
+    )
+
+    # --------------------------------------------------------
+    # AVOID FILE NAME COLLISION
+    # --------------------------------------------------------
+
+    filename = original_name
+
+    image_path = os.path.join(
+        category_folder,
+        filename
+    )
+
+    counter = 1
+    filename_was_changed = False
+ 
+    while os.path.exists(image_path):
+
+        filename = (
+            f"{name}_{counter}{extension}"
+        )
+
+        image_path = os.path.join(
+            category_folder,
+            filename
+        )
+ 
+        counter += 1
+        filename_was_changed = True
+
+    # --------------------------------------------------------
+    # SAVE IMAGE
+    # --------------------------------------------------------
+
+    with open(
+        image_path,
+        "wb"
+    ) as file:
+
+        file.write(
+            uploaded_file.getbuffer()
+        )
+
+    try:
+
+        # ----------------------------------------------------
+        # VERIFY IMAGE
+        # ----------------------------------------------------
+
+        image = Image.open(
+            image_path
+        ).convert("RGB")
+
+        # ----------------------------------------------------
+        # OCR
+        # ----------------------------------------------------
+
+        ocr_text = extract_ocr_text(
+            image_path
+        )
+
+        if not ocr_text:
+
+            ocr_text = ""
+
+        # ----------------------------------------------------
+        # SEMANTIC EMBEDDING
+        # ----------------------------------------------------
+
+        semantic_embedding = (
+            generate_semantic_embedding(
+                ocr_text
+            )
+        )
+
+        # ----------------------------------------------------
+        # VISUAL EMBEDDING
+        # ----------------------------------------------------
+
+        visual_embedding = (
+            generate_visual_embedding(
+                image
+            )
+        )
+
+        # ----------------------------------------------------
+        # VERIFY NEW EMBEDDING DIMENSIONS
+        # ----------------------------------------------------
+
+        if semantic_embedding.shape[0] != 384:
+
+            raise ValueError(
+                "Generated semantic embedding does not have 384 dimensions."
+            )
+
+        if visual_embedding.shape[0] != 512:
+
+            raise ValueError(
+                "Generated visual embedding does not have 512 dimensions."
+            )
+
+        # ----------------------------------------------------
+        # RELATIVE FILE PATH
+        # ----------------------------------------------------
+
+        relative_path = os.path.join(
+            "Data",
+            category,
+            filename
+        ).replace("\\", "/")
+
+        # ----------------------------------------------------
+        # CREATE NEW METADATA ROWS
+        # ----------------------------------------------------
+
+        semantic_row = {
+            "filename": filename,
+            "filepath": relative_path,
+            "category": category,
+            "ocr_text": ocr_text
+        }
+
+        visual_row = {
+            "filename": filename,
+            "filepath": relative_path,
+            "category": category
+        }
+
+        # ----------------------------------------------------
+        # APPEND METADATA
+        # ----------------------------------------------------
+
+        semantic_new_row = pd.DataFrame(
+            [semantic_row],
+            columns=current_semantic_df.columns
+        )
+
+        visual_new_row = pd.DataFrame(
+            [visual_row],
+            columns=current_visual_df.columns
+        )
+
+        updated_semantic_df = pd.concat(
+            [
+                current_semantic_df,
+                semantic_new_row
+            ],
+            ignore_index=True
+        )
+
+        updated_visual_df = pd.concat(
+            [
+                current_visual_df,
+                visual_new_row
+            ],
+            ignore_index=True
+        )
+
+        # ----------------------------------------------------
+        # APPEND EMBEDDINGS
+        # ----------------------------------------------------
+
+        updated_semantic_embeddings = np.vstack(
+            [
+                current_semantic_embeddings,
+                semantic_embedding
+            ]
+        )
+
+        updated_visual_embeddings = np.vstack(
+            [
+                current_visual_embeddings,
+                visual_embedding
+            ]
+        )
+
+        # ----------------------------------------------------
+        # FINAL SYNCHRONIZATION CHECK
+        # ----------------------------------------------------
+
+        if len(updated_semantic_df) != len(
+            updated_semantic_embeddings
+        ):
+
+            raise ValueError(
+                "Semantic data could not be synchronized."
+            )
+
+        if len(updated_visual_df) != len(
+            updated_visual_embeddings
+        ):
+
+            raise ValueError(
+                "Visual data could not be synchronized."
+            )
+
+        # ----------------------------------------------------
+        # CREATE BACKUPS
+        # ----------------------------------------------------
+
+        backup_paths = {
+
+            "semantic_csv":
+                SEMANTIC_METADATA_PATH + ".backup",
+
+            "semantic_npy":
+                SEMANTIC_EMBEDDINGS_PATH + ".backup",
+
+            "visual_csv":
+                VISUAL_METADATA_PATH + ".backup",
+
+            "visual_npy":
+                VISUAL_EMBEDDINGS_PATH + ".backup"
+        }
+
+        # ----------------------------------------------------
+        # COPY CURRENT FILES TO BACKUP
+        # ----------------------------------------------------
+
+        import shutil
+
+        shutil.copy2(
+            SEMANTIC_METADATA_PATH,
+            backup_paths["semantic_csv"]
+        )
+
+        shutil.copy2(
+            SEMANTIC_EMBEDDINGS_PATH,
+            backup_paths["semantic_npy"]
+        )
+
+        shutil.copy2(
+            VISUAL_METADATA_PATH,
+            backup_paths["visual_csv"]
+        )
+
+        shutil.copy2(
+            VISUAL_EMBEDDINGS_PATH,
+            backup_paths["visual_npy"]
+        )
+
+        try:
+
+            # ------------------------------------------------
+            # SAVE UPDATED SEMANTIC DATA
+            # ------------------------------------------------
+
+            updated_semantic_df.to_csv(
+                SEMANTIC_METADATA_PATH,
+                index=False
+            )
+
+            np.save(
+                SEMANTIC_EMBEDDINGS_PATH,
+                updated_semantic_embeddings
+            )
+
+            # ------------------------------------------------
+            # SAVE UPDATED VISUAL DATA
+            # ------------------------------------------------
+
+            updated_visual_df.to_csv(
+                VISUAL_METADATA_PATH,
+                index=False
+            )
+
+            np.save(
+                VISUAL_EMBEDDINGS_PATH,
+                updated_visual_embeddings
+            )
+
+        except Exception:
+
+            # ------------------------------------------------
+            # RESTORE ORIGINAL FILES
+            # ------------------------------------------------
+
+            shutil.copy2(
+                backup_paths["semantic_csv"],
+                SEMANTIC_METADATA_PATH
+            )
+
+            shutil.copy2(
+                backup_paths["semantic_npy"],
+                SEMANTIC_EMBEDDINGS_PATH
+            )
+
+            shutil.copy2(
+                backup_paths["visual_csv"],
+                VISUAL_METADATA_PATH
+            )
+
+            shutil.copy2(
+                backup_paths["visual_npy"],
+                VISUAL_EMBEDDINGS_PATH
+            )
+
+            raise
+
+        finally:
+
+            # ------------------------------------------------
+            # REMOVE TEMPORARY BACKUPS
+            # ------------------------------------------------
+
+            for backup_file in backup_paths.values():
+
+                if os.path.exists(backup_file):
+
+                    os.remove(backup_file)
+
+        # ----------------------------------------------------
+        # CLEAR CACHED DATA
+        # ----------------------------------------------------
+
+        load_semantic_metadata.clear()
+        load_semantic_embeddings.clear()
+
+        load_visual_metadata.clear()
+        load_visual_embeddings.clear()
+
+        return {
+            "filename": filename,
+            "original_filename": original_name,
+            "category": category,
+            "ocr_text": ocr_text,
+            "filename_was_changed": filename_was_changed
+        }
+
+
+    except Exception:
+
+        # ----------------------------------------------------
+        # REMOVE UPLOADED IMAGE IF PROCESSING FAILED
+        # ----------------------------------------------------
+
+        if os.path.exists(image_path):
+
+            os.remove(image_path)
+
+        raise
+
 # ============================================================
 # LOAD EVERYTHING 
 # ============================================================ 
@@ -513,71 +1064,75 @@ clip_model, clip_processor, clip_device = (
  
        
 # ============================================================
-# MERGE OCR TEXT INTO VISUAL DATA 
-# ============================================================ 
- 
-# Create OCR column first 
-visual_df["ocr_text"] = "" 
- 
- 
-# Normalize filename helper 
-def get_filename_key(path): 
- 
-    return ( 
-        str(path) 
-        .replace("\\", "/") 
-        .strip() 
-        .lower() 
-        .split("/")[-1] 
-    ) 
- 
- 
-# Create matching keys 
-semantic_df["_match_key"] = ( 
-    semantic_df["filename"] 
-    .apply(get_filename_key) 
-) 
- 
-visual_df["_match_key"] = ( 
-    visual_df["filename"] 
-    .apply(get_filename_key) 
-) 
- 
- 
-# Create OCR lookup dictionary 
-ocr_lookup = dict( 
-    zip( 
-        semantic_df["_match_key"], 
-        semantic_df["ocr_text"] 
-    ) 
-) 
- 
- 
-# Add OCR text to visual dataframe 
-visual_df["ocr_text"] = ( 
-    visual_df["_match_key"] 
-    .map(ocr_lookup) 
-) 
- 
- 
-# Replace missing OCR values 
-visual_df["ocr_text"] = ( 
-    visual_df["ocr_text"] 
-    .fillna("") 
-) 
- 
- 
-# Remove temporary matching columns 
-semantic_df.drop( 
-    columns=["_match_key"], 
-    inplace=True, 
-    errors="ignore" 
-) 
- 
-visual_df.drop( 
-    columns=["_match_key"], 
-    inplace=True, 
-    errors="ignore" 
+# MERGE OCR TEXT INTO VISUAL DATA
+# ============================================================
+
+# Create OCR column first
+visual_df["ocr_text"] = ""
+
+
+# Normalize filename helper
+def get_filename_key(path):
+
+    return (
+        str(path)
+        .replace("\\", "/")
+        .strip()
+        .lower()
+        .split("/")[-1]
+    )
+
+
+# Create matching key using category + filename
+def get_match_key(row):
+
+    return (
+        str(row["category"]).strip().lower()
+        + "|"
+        + get_filename_key(row["filename"])
+    )
+
+
+# Create matching keys
+semantic_df["_match_key"] = semantic_df.apply(
+    get_match_key,
+    axis=1
+)
+
+visual_df["_match_key"] = visual_df.apply(
+    get_match_key,
+    axis=1
+)
+
+
+# Create OCR lookup dictionary
+ocr_lookup = dict(
+    zip(
+        semantic_df["_match_key"],
+        semantic_df["ocr_text"]
+    )
+)
+
+
+# Add OCR text to visual dataframe
+visual_df["ocr_text"] = (
+    visual_df["_match_key"]
+    .map(ocr_lookup)
+    .fillna("")
+)
+
+
+# Remove temporary matching columns
+semantic_df.drop(
+    columns=["_match_key"],
+    inplace=True,
+    errors="ignore"
+)
+
+visual_df.drop(
+    columns=["_match_key"],
+    inplace=True,
+    errors="ignore"
 ) 
  
 # ============================================================
@@ -612,7 +1167,7 @@ if len(visual_df) != len(visual_embeddings):
  
 st.markdown( 
     '<div class="main-title">' 
-    '🔍 Smart Screenshot Search Engine' 
+    '🔍VisionX' 
     '</div>', 
     unsafe_allow_html=True 
 ) 
@@ -660,11 +1215,11 @@ with col2:
  
 with col3: 
  
-    st.metric( 
-        "🧠 Embedding Size", 
-        embedding_dimension 
-    ) 
- 
+    st.metric(
+    "🔎 Search Modes",
+    "2"
+)
+
 with col4: 
  
     st.metric( 
@@ -688,100 +1243,199 @@ if "search_history" not in st.session_state:
  
  
 # ============================================================
-# SIDEBAR 
-# ============================================================ 
- 
-with st.sidebar: 
- 
-    st.markdown( 
-        '<div class="sidebar-title">' 
-        '⚙️ Search Settings' 
-        '</div>', 
-        unsafe_allow_html=True 
-    ) 
- 
- 
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.markdown(
+        '<div class="sidebar-title">'
+        '⚙️ Search Settings'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
     # ========================================================
-    # CATEGORY 
-    # ======================================================== 
- 
-    category_options = [ 
-        "🗂️ All Categories" 
-    ] 
- 
-    for category in sorted( 
-        visual_df["category"] 
-        .dropna() 
-        .unique() 
-    ): 
- 
-        category_options.append( 
-            category_display.get( 
-                category, 
-                category 
-            ) 
-        ) 
- 
- 
-    selected_display_category = st.selectbox( 
-        "📂 Category", 
-        category_options 
-    ) 
- 
- 
-    if ( 
-        selected_display_category 
-        == "🗂️ All Categories" 
-    ): 
- 
-        selected_category = "All Categories" 
- 
-    else: 
- 
-        selected_category = next( 
-            ( 
-                key 
-                for key, value in category_display.items() 
-                if value 
-                == selected_display_category 
-            ), 
-            selected_display_category 
-        ) 
- 
- 
+    # UPLOAD NEW IMAGE
     # ========================================================
-    # NUMBER OF RESULTS 
-    # ======================================================== 
+
  
-    number_of_results = st.slider( 
-        "🎚️ Number of results", 
-        min_value=1, 
-        max_value=10, 
-        value=6 
-    ) 
+    st.markdown(
+        '<div class="sidebar-title">'
+        '📤 Add New Screenshot'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    uploaded_file = st.file_uploader(
+        "Upload an image",
+        type=["jpg", "jpeg", "png", "webp"],
+        help="Add a new screenshot to the search database.",
+        width="stretch"
+    )
+
+    upload_category_display = st.selectbox(
+        "📂 Select Category",
+        [
+            category_display[category]
+            for category in category_display
+        ],
+        key="upload_category"
+    )
+
+    upload_category = next(
+        (
+            key
+            for key, value in category_display.items()
+            if value == upload_category_display
+        ),
+        None
+    )
+
+    if st.button(
+        "📤 Add to Search Engine",
+        use_container_width=True
+    ):
+
+        if uploaded_file is None:
+
+            st.warning(
+                "Please select an image first."
+            )
+
+        else:
+
+            try:
+
+                with st.spinner(
+                    "Processing image... OCR + AI embeddings"
+                ):
+
+                    upload_result = process_uploaded_image(
+                        uploaded_file,
+                        upload_category
+                    )
+
+                if upload_result["filename_was_changed"]:
+
+                    st.warning(
+                        f"⚠️ {upload_result['original_filename']} already existed.\n\n"
+                        f"Saved as {upload_result['filename']} instead."
+                    )
+
+                else:
  
- 
-    st.divider() 
- 
- 
+                    st.success(
+                        f"'{upload_result['filename']}' "
+                       "was added successfully!"
+                    )
+
+                if upload_result["ocr_text"]:
+                    st.info(
+                        "OCR text extracted successfully."
+                    )
+
+                    st.caption(
+                        "Extracted OCR: "
+                        + upload_result["ocr_text"]
+                    )
+                else:
+
+                    st.info(
+                        "Image added. No readable text was detected."
+                    )
+
+                st.rerun()
+
+            except Exception as e:
+
+                st.error(
+                    f"Upload failed: {e}"
+                )
+
+
     # ========================================================
-    # DATASET OVERVIEW 
-    # ======================================================== 
- 
-    st.markdown( 
-        '<div class="sidebar-title">' 
-        '📊 Dataset Overview' 
-        '</div>', 
-        unsafe_allow_html=True 
-    ) 
- 
- 
-    category_counts = ( 
-        visual_df["category"] 
-        .value_counts() 
-    ) 
- 
- 
+    # CATEGORY
+    # ========================================================
+
+    category_options = [
+        "🗂️ All Categories"
+    ]
+
+    for category in sorted(
+        visual_df["category"]
+        .dropna()
+        .unique()
+    ):
+
+        category_options.append(
+            category_display.get(
+                category,
+                category
+            )
+        )
+
+
+    selected_display_category = st.selectbox(
+        "📂 Category",
+        category_options
+    )
+
+
+    if (
+        selected_display_category
+        == "🗂️ All Categories"
+    ):
+
+        selected_category = "All Categories"
+
+    else:
+
+        selected_category = next(
+            (
+                key
+                for key, value in category_display.items()
+                if value
+                == selected_display_category
+            ),
+            selected_display_category
+        )
+
+
+    # ========================================================
+    # NUMBER OF RESULTS
+    # ========================================================
+
+    number_of_results = st.slider(
+        "🎚️ Number of results",
+        min_value=1,
+        max_value=10,
+        value=6
+    )
+
+
+    st.divider()
+
+
+    # ========================================================
+    # DATASET OVERVIEW
+    # ========================================================
+
+    st.markdown(
+        '<div class="sidebar-title">'
+        '📊 Dataset Overview'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
+    category_counts = (
+        visual_df["category"]
+        .value_counts()
+    )
+
+
     for category, count in category_counts.items():
 
         display_name = category_display.get(
@@ -830,36 +1484,37 @@ with st.sidebar:
 
 
     # ========================================================
-    # CATEGORY DISTRIBUTION BAR GRAPH 
-    # ======================================================== 
- 
-    st.markdown( 
-        '<div class="sidebar-title" ' 
-        'style="margin-top:20px;">' 
-        '📈 Category Distribution' 
-        '</div>', 
-        unsafe_allow_html=True 
-    ) 
- 
-    chart_data = category_counts.rename( 
-        index={ 
-            category: category_display.get( 
-                category, 
-                category 
-            ) 
-            for category in category_counts.index 
-        } 
-    ) 
- 
-    st.bar_chart( 
-        chart_data, 
-        use_container_width=True 
-    ) 
- 
- 
+    # CATEGORY DISTRIBUTION BAR GRAPH
+    # ========================================================
+
+    st.markdown(
+        '<div class="sidebar-title" '
+        'style="margin-top:20px;">'
+        '📈 Category Distribution'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
+    chart_data = category_counts.rename(
+        index={
+            category: category_display.get(
+                category,
+                category
+            )
+            for category in category_counts.index
+        }
+    )
+
+
+    st.bar_chart(
+        chart_data,
+        use_container_width=True
+    )
+
 # ============================================================
-# SEARCH SECTION 
-# ============================================================ 
+# SEARCH SECTION
+# ============================================================
  
 st.markdown( 
     '<div class="search-section-title">' 
@@ -1060,40 +1715,81 @@ def is_visual_query(text):
 # SEMANTIC SEARCH 
 # ============================================================ 
  
-def semantic_search( 
-    query, 
-    search_df, 
-    search_embeddings 
-): 
- 
-    query_embedding = ( 
-        semantic_model.encode( 
-            [query], 
-            convert_to_numpy=True 
-        ) 
-    ) 
- 
- 
-    similarities = ( 
-        cosine_similarity( 
-            query_embedding, 
-            search_embeddings 
-        )[0] 
-    ) 
- 
- 
-    results = search_df.copy() 
- 
- 
-    results["similarity"] = ( 
-        similarities 
-    ) 
- 
- 
-    return results.sort_values( 
-        "similarity", 
-        ascending=False 
-    ) 
+def semantic_search(
+    query,
+    search_df,
+    search_embeddings
+):
+
+    query_embedding = (
+        semantic_model.encode(
+            [query],
+            convert_to_numpy=True
+        )
+    )
+
+    similarities = (
+        cosine_similarity(
+            query_embedding,
+            search_embeddings
+        )[0]
+    )
+
+    results = search_df.copy()
+
+    results["similarity"] = similarities
+
+    # --------------------------------------------------------
+    # OCR EXACT MATCH BOOST
+    # --------------------------------------------------------
+
+    query_words = set(
+        clean_query(query).split()
+    )
+
+    def calculate_ocr_boost(text):
+
+        text = clean_query(text)
+
+        if not text:
+            return 0.0
+
+        ocr_words = set(text.split())
+
+        # Exact word match
+        exact_matches = (
+            query_words.intersection(ocr_words)
+        )
+
+        if exact_matches:
+            return 1.0
+
+        # Query appears as a complete phrase
+        if clean_query(query) in text:
+            return 1.0
+
+        return 0.0
+
+    results["ocr_boost"] = (
+        results["ocr_text"]
+        .fillna("")
+        .apply(calculate_ocr_boost)
+    )
+
+    # --------------------------------------------------------
+    # FINAL HYBRID TEXT SCORE
+    # --------------------------------------------------------
+
+    results["final_score"] = (
+        results["similarity"] * 0.7
+        +
+        results["ocr_boost"] * 0.3
+    )
+
+    return results.sort_values(
+        ["ocr_boost", "final_score"],
+        ascending=[False, False]
+    )
  
  
 # ============================================================
@@ -1460,25 +2156,12 @@ if search_button:
     ) 
  
  
-    st.markdown( 
-        f""" 
-        <div class="result-count"> 
- 
-            <b>{result_count}</b> 
-            result{"s" if result_count != 1 else ""} 
- 
-            &nbsp; • &nbsp; 
- 
-            {search_method} 
- 
-            &nbsp; • &nbsp; 
- 
-            Search: "{cleaned_query}" 
- 
-        </div> 
-        """, 
-        unsafe_allow_html=True 
-    ) 
+    st.markdown(
+        f"**{result_count}** "
+        f"result{'s' if result_count != 1 else ''} "
+        f"• {search_method} "
+        f"• Search: \"{cleaned_query}\""
+    )
  
  
     # ========================================================
