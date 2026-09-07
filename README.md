@@ -1,4 +1,4 @@
-# 👁️ VisionX
+# 🔍 VisionX
 
 VisionX is a project I developed to make it easier to find and organize screenshots from a large collection.
 
