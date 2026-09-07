@@ -105,5 +105,3 @@ Smart-Screenshot-Search-Engine/
 ├── UI/
 ├── requirements.txt
 └── .gitignore
-```bash
-pip install -r requirements.txt
