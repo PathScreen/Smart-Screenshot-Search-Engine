@@ -90,7 +90,7 @@ After uploading, the system:
 4. Generates a visual embedding using CLIP.
 5. Updates the metadata and embedding indexes.
 
-The uploaded screenshot can then be included in future searches.
+The uploaded screenshot can then be searched in the current application.
 
 ## Project Structure
 
@@ -105,3 +105,17 @@ Smart-Screenshot-Search-Engine/
 ├── UI/
 ├── requirements.txt
 └── .gitignore
+
+## Running the Project
+
+Install the required Python libraries:
+
+```bash
+pip install -r requirements.txt
+
+## Running the Project
+
+Install the required Python libraries:
+
+```bash
+pip install -r requirements.txt
