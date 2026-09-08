@@ -480,11 +480,17 @@ def load_clip_model():
 @st.cache_resource
 def load_ocr_reader():
 
+    model_dir = os.path.join(
+        PROJECT_ROOT,
+        "easyocr_models"
+    )
+
     return easyocr.Reader(
         ["en"],
-        gpu=torch.cuda.is_available()
+        gpu=False,
+        model_storage_directory=model_dir,
+        download_enabled=False
     )
- 
 # ============================================================
 # OCR FUNCTION FOR UPLOADED IMAGE
 # ============================================================
@@ -1271,8 +1277,7 @@ with st.sidebar:
     uploaded_file = st.file_uploader(
         "Upload an image",
         type=["jpg", "jpeg", "png", "webp"],
-        help="Add a new screenshot to the search database.",
-        width="stretch"
+        label_visibility="collapsed"
     )
 
     upload_category_display = st.selectbox(
