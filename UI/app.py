@@ -4,6 +4,7 @@ import numpy as np
 import torch 
 import re 
 import os
+import gc
  
 from sentence_transformers import SentenceTransformer 
 from sklearn.metrics.pairwise import cosine_similarity 
@@ -477,7 +478,6 @@ def load_clip_model():
 # LOAD OCR READER
 # ============================================================
 
-@st.cache_resource
 def load_ocr_reader():
 
     model_dir = os.path.join(
@@ -499,13 +499,20 @@ def extract_ocr_text(image_path):
 
     reader = load_ocr_reader()
 
-    results = reader.readtext(
-        image_path,
-        detail=0,
-        paragraph=True
-    )
+    try:
 
-    return " ".join(results).strip()
+        results = reader.readtext(
+            image_path,
+            detail=0,
+            paragraph=True
+        )
+
+        return " ".join(results).strip()
+
+    finally:
+
+        del reader
+        gc.collect()
 
 # ============================================================
 # GENERATE SEMANTIC EMBEDDING
@@ -794,6 +801,9 @@ def process_uploaded_image(uploaded_file, category):
                 image
             )
         )
+        
+        del image
+        gc.collect()
 
         # ----------------------------------------------------
         # VERIFY NEW EMBEDDING DIMENSIONS
@@ -905,6 +915,7 @@ def process_uploaded_image(uploaded_file, category):
             raise ValueError(
                 "Visual data could not be synchronized."
             )
+        gc.collect()
 
         # ----------------------------------------------------
         # CREATE BACKUPS
