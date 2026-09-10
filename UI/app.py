@@ -429,50 +429,71 @@ def load_visual_embeddings():
         VISUAL_EMBEDDINGS_PATH 
     ) 
  
- 
 # ============================================================
-# LOAD SEMANTIC MODEL 
-# ============================================================ 
- 
-@st.cache_resource 
-def load_semantic_model(): 
- 
-    device = ( 
-        "cuda" 
-        if torch.cuda.is_available() 
-        else "cpu" 
-    ) 
- 
-    return SentenceTransformer( 
-        "all-MiniLM-L6-v2", 
-        device=device 
-    ) 
- 
- 
+# LOAD SEMANTIC MODEL LAZILY
 # ============================================================
-# LOAD CLIP 
-# ============================================================ 
- 
-@st.cache_resource 
-def load_clip_model(): 
- 
-    device = ( 
-        "cuda" 
-        if torch.cuda.is_available() 
-        else "cpu" 
-    ) 
- 
-    model = CLIPModel.from_pretrained( 
-        "openai/clip-vit-base-patch32" 
-    ).to(device) 
- 
-    processor = CLIPProcessor.from_pretrained( 
-        "openai/clip-vit-base-patch32" 
-    ) 
- 
-    model.eval() 
- 
-    return model, processor, device 
+
+@st.cache_resource
+def load_semantic_model():
+
+    device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "cpu"
+    )
+
+    return SentenceTransformer(
+        "all-MiniLM-L6-v2",
+        device=device
+    )
+
+
+# ============================================================
+# LOAD CLIP LAZILY
+# ============================================================
+
+@st.cache_resource
+def load_clip_model():
+
+    device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "cpu"
+    )
+
+    model = CLIPModel.from_pretrained(
+        "openai/clip-vit-base-patch32"
+    ).to(device)
+
+    processor = CLIPProcessor.from_pretrained(
+        "openai/clip-vit-base-patch32"
+    )
+
+    model.eval()
+
+    return model, processor, device
+
+
+# ============================================================
+# RELEASE AI MODELS FROM MEMORY
+# ============================================================
+
+def release_ai_models():
+
+    try:
+        load_semantic_model.clear()
+    except Exception:
+        pass
+
+    try:
+        load_clip_model.clear()
+    except Exception:
+        pass
+
+    gc.collect()
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
    
 # ============================================================
 # LOAD OCR READER
@@ -520,12 +541,21 @@ def extract_ocr_text(image_path):
 
 def generate_semantic_embedding(text):
 
-    embedding = semantic_model.encode(
-        text,
-        convert_to_numpy=True
-    )
+    semantic_model = load_semantic_model()
 
-    return embedding.astype(np.float32)
+    try:
+
+        embedding = semantic_model.encode(
+            text,
+            convert_to_numpy=True
+        )
+
+        return embedding.astype(np.float32)
+
+    finally:
+
+        del semantic_model
+        release_ai_models()
 
 # ============================================================
 # EMBEDDING FUNCTIONS FOR UPLOADED IMAGE
@@ -533,35 +563,56 @@ def generate_semantic_embedding(text):
 
 def generate_visual_embedding(image):
 
-    inputs = clip_processor(
-        images=image,
-        return_tensors="pt"
+    clip_model, clip_processor, clip_device = (
+        load_clip_model()
     )
 
-    inputs = {
-        key: value.to(clip_device)
-        for key, value in inputs.items()
-    }
+    try:
 
-    with torch.no_grad():
-
-        vision_outputs = clip_model.vision_model(
-            pixel_values=inputs["pixel_values"]
+        inputs = clip_processor(
+            images=image,
+            return_tensors="pt"
         )
 
-        pooled_output = vision_outputs.pooler_output
+        inputs = {
+            key: value.to(clip_device)
+            for key, value in inputs.items()
+        }
 
-        image_features = clip_model.visual_projection(
-            pooled_output
+        with torch.no_grad():
+
+            vision_outputs = clip_model.vision_model(
+                pixel_values=inputs["pixel_values"]
+            )
+
+            pooled_output = (
+                vision_outputs.pooler_output
+            )
+
+            image_features = (
+                clip_model.visual_projection(
+                    pooled_output
+                )
+            )
+
+        embedding = (
+            image_features
+            .cpu()
+            .numpy()[0]
         )
 
-    embedding = image_features.cpu().numpy()[0]
+        embedding = (
+            embedding
+            / np.linalg.norm(embedding)
+        )
 
-    embedding = embedding / np.linalg.norm(
-        embedding
-    )
+        return embedding.astype(np.float32)
 
-    return embedding.astype(np.float32)
+    finally:
+
+        del clip_model
+        del clip_processor
+        release_ai_models()
 
 # ============================================================
 # PROCESS AND SAVE UPLOADED IMAGE
@@ -1064,21 +1115,14 @@ def process_uploaded_image(uploaded_file, category):
         raise
 
 # ============================================================
-# LOAD EVERYTHING 
-# ============================================================ 
- 
-semantic_df = load_semantic_metadata() 
-semantic_embeddings = load_semantic_embeddings() 
- 
-visual_df = load_visual_metadata() 
+# LOAD DATA INDEXES
+# ============================================================
+
+semantic_df = load_semantic_metadata()
+semantic_embeddings = load_semantic_embeddings()
+
+visual_df = load_visual_metadata()
 visual_embeddings = load_visual_embeddings() 
- 
-semantic_model = load_semantic_model() 
- 
-clip_model, clip_processor, clip_device = ( 
-    load_clip_model() 
-) 
- 
        
 # ============================================================
 # MERGE OCR TEXT INTO VISUAL DATA
@@ -1282,6 +1326,48 @@ with st.sidebar:
         '<div class="sidebar-title">'
         '📤 Add New Screenshot'
         '</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        """
+        <style>
+
+        /* Hide the Material icon glyph — it isn't rendering as an
+           actual icon in this environment (shows literal "upload"
+           text instead), which is what was overlapping with the
+           "Upload" label. Removing it eliminates the conflict
+           entirely instead of trying to space two labels apart. */
+        div[data-testid="stFileUploader"] [data-testid="stIconMaterial"] {
+            display: none !important;
+        }
+
+        /* Style the button itself — no `all: unset` this time, only
+           the specific properties we actually want to change. */
+        div[data-testid="stFileUploader"] button[data-testid="stBaseButton-secondary"] {
+            width: 100% !important;
+            box-sizing: border-box !important;
+            white-space: nowrap !important;
+            padding: 8px 14px !important;
+            border-radius: 8px !important;
+            background: #172033 !important;
+            border: none !important;
+        }
+
+        div[data-testid="stFileUploader"] button:hover {
+            background: #303b55 !important;
+        }
+
+        /* The label text itself */
+        div[data-testid="stFileUploader"] button p {
+            margin: 0 !important;
+            color: #ffffff !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+        }
+
+        </style>
+        """,
         unsafe_allow_html=True
     )
 
@@ -1737,13 +1823,21 @@ def semantic_search(
     search_embeddings
 ):
 
-    query_embedding = (
-        semantic_model.encode(
-            [query],
-            convert_to_numpy=True
-        )
-    )
+    semantic_model = load_semantic_model()
 
+    try:
+
+        query_embedding = (
+            semantic_model.encode(
+                [query],
+                convert_to_numpy=True
+            )
+        )
+
+    finally:
+
+        del semantic_model
+        release_ai_models()
     similarities = (
         cosine_similarity(
             query_embedding,
@@ -1812,103 +1906,119 @@ def semantic_search(
 # CLIP SEARCH 
 # ============================================================ 
  
-def clip_search( 
-    query, 
-    search_df, 
-    search_embeddings 
-): 
- 
-    inputs = clip_processor( 
-        text=[query], 
-        return_tensors="pt", 
-        padding=True 
-    ) 
- 
- 
-    inputs = { 
-        key: value.to(clip_device) 
-        for key, value in inputs.items() 
-    } 
- 
- 
-    with torch.inference_mode(): 
- 
-        output = ( 
-            clip_model.get_text_features( 
-                **inputs 
-            ) 
-        ) 
- 
- 
-    if hasattr( 
-        output, 
-        "pooler_output" 
-    ): 
- 
-        query_embedding = ( 
-            output.pooler_output 
-        ) 
- 
-    else: 
- 
-        query_embedding = output 
- 
- 
-    query_embedding = ( 
-        query_embedding 
-        / query_embedding.norm( 
-            p=2, 
-            dim=-1, 
-            keepdim=True 
-        ) 
-    ) 
- 
- 
-    image_embeddings = torch.tensor( 
-        search_embeddings, 
-        dtype=torch.float32, 
-        device=clip_device 
-    ) 
- 
- 
-    image_embeddings = ( 
-        image_embeddings 
-        / image_embeddings.norm( 
-            p=2, 
-            dim=-1, 
-            keepdim=True 
-        ) 
-    ) 
- 
- 
-    similarities = ( 
-        image_embeddings 
-        @ query_embedding.T 
-    ) 
- 
- 
-    similarities = ( 
-        similarities 
-        .squeeze() 
-        .detach() 
-        .cpu() 
-        .numpy() 
-    ) 
- 
- 
-    results = search_df.copy() 
- 
- 
-    results["similarity"] = ( 
-        similarities 
-    ) 
- 
- 
-    return results.sort_values( 
-        "similarity", 
-        ascending=False 
-    ) 
- 
+def clip_search(
+    query,
+    search_df,
+    search_embeddings
+):
+
+    clip_model, clip_processor, clip_device = (
+        load_clip_model()
+    )
+
+    try:
+
+        inputs = clip_processor(
+            text=[query],
+            return_tensors="pt",
+            padding=True
+        )
+
+        inputs = {
+            key: value.to(clip_device)
+            for key, value in inputs.items()
+        }
+
+        with torch.inference_mode():
+
+            output = (
+                clip_model.get_text_features(
+                    **inputs
+                )
+            )
+
+        if hasattr(
+            output,
+            "pooler_output"
+        ):
+
+            query_embedding = (
+                output.pooler_output
+            )
+
+        else:
+
+            query_embedding = output
+
+        query_embedding = (
+            query_embedding
+            / query_embedding.norm(
+                p=2,
+                dim=-1,
+                keepdim=True
+            )
+        )
+
+        image_embeddings = torch.tensor(
+            search_embeddings,
+            dtype=torch.float32,
+            device=clip_device
+        )
+
+        image_embeddings = (
+            image_embeddings
+            / image_embeddings.norm(
+                p=2,
+                dim=-1,
+                keepdim=True
+            )
+        )
+
+        similarities = (
+            image_embeddings
+            @ query_embedding.T
+        )
+
+        similarities = (
+            similarities
+            .squeeze()
+            .detach()
+            .cpu()
+            .numpy()
+        )
+
+        results = search_df.copy()
+
+        results["similarity"] = (
+            similarities
+        )
+
+        return results.sort_values(
+            "similarity",
+            ascending=False
+        )
+
+    finally:
+
+        del clip_model
+        del clip_processor
+
+        if "inputs" in locals():
+            del inputs
+
+        if "image_embeddings" in locals():
+            del image_embeddings
+
+        if "query_embedding" in locals():
+            del query_embedding
+
+        if "output" in locals():
+            del output
+
+        if "similarities" in locals():
+            del similarities
+
+        release_ai_models() 
  
 # ============================================================
 # SEARCH EXECUTION 
