@@ -109,7 +109,7 @@ Make sure the following are installed:
 - Git
 - pip
 
-### Installation
+## 🛠️ Installation
 
 1. Clone the repository:
 
