@@ -1393,7 +1393,7 @@ with st.sidebar:
 
         if st.button(
             "📤 Add to Search Engine",
-            use_container_width=True
+            width="stretch"
         ):
 
             if uploaded_file is None:
@@ -1609,7 +1609,7 @@ with st.sidebar:
 
     st.bar_chart(
         chart_data,
-        use_container_width=True
+        width="stretch"
     )
 
 # ============================================================
@@ -1653,7 +1653,7 @@ with button_col:
  
     search_button = st.button( 
         "🔍 Search", 
-        use_container_width=True 
+        width="stretch" 
     ) 
  
  
@@ -2339,7 +2339,7 @@ if search_button:
  
                     st.image( 
                         image, 
-                        use_container_width=True 
+                        width="stretch" 
                     ) 
  
  
@@ -2481,7 +2481,7 @@ if search_button:
  
                         st.image( 
                             image, 
-                            use_container_width=True 
+                            width="stretch" 
                         ) 
  
  
