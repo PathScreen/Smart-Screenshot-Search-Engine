@@ -11,6 +11,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from transformers import CLIPProcessor, CLIPModel 
 from PIL import Image
 import easyocr
+DEPLOYED_MODE = False
 
 # ============================================================
 # PROJECT ROOT
@@ -1316,145 +1317,142 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
+    if not DEPLOYED_MODE:
 
-    # ========================================================
-    # UPLOAD NEW IMAGE
-    # ========================================================
+        # ========================================================
+        # UPLOAD NEW IMAGE
+        # ========================================================
 
- 
-    st.markdown(
-        '<div class="sidebar-title">'
-        '📤 Add New Screenshot'
-        '</div>',
-        unsafe_allow_html=True
-    )
+        st.markdown(
+            '<div class="sidebar-title">'
+            '📤 Add New Screenshot'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
-    st.markdown(
-        """
-        <style>
+        st.markdown(
+            """
+            <style>
 
-        /* Hide the Material icon glyph — it isn't rendering as an
-           actual icon in this environment (shows literal "upload"
-           text instead), which is what was overlapping with the
-           "Upload" label. Removing it eliminates the conflict
-           entirely instead of trying to space two labels apart. */
-        div[data-testid="stFileUploader"] [data-testid="stIconMaterial"] {
-            display: none !important;
-        }
+            /* Hide the Material icon glyph */
+            div[data-testid="stFileUploader"] [data-testid="stIconMaterial"] {
+                display: none !important;
+            }
 
-        /* Style the button itself — no `all: unset` this time, only
-           the specific properties we actually want to change. */
-        div[data-testid="stFileUploader"] button[data-testid="stBaseButton-secondary"] {
-            width: 100% !important;
-            box-sizing: border-box !important;
-            white-space: nowrap !important;
-            padding: 8px 14px !important;
-            border-radius: 8px !important;
-            background: #172033 !important;
-            border: none !important;
-        }
+            /* Style the upload button */
+            div[data-testid="stFileUploader"] button[data-testid="stBaseButton-secondary"] {
+                width: 100% !important;
+                box-sizing: border-box !important;
+                white-space: nowrap !important;
+                padding: 8px 14px !important;
+                border-radius: 8px !important;
+                background: #172033 !important;
+                border: none !important;
+            }
 
-        div[data-testid="stFileUploader"] button:hover {
-            background: #303b55 !important;
-        }
+            div[data-testid="stFileUploader"] button:hover {
+                background: #303b55 !important;
+            }
 
-        /* The label text itself */
-        div[data-testid="stFileUploader"] button p {
-            margin: 0 !important;
-            color: #ffffff !important;
-            font-size: 13px !important;
-            font-weight: 600 !important;
-        }
+            /* Label text */
+            div[data-testid="stFileUploader"] button p {
+                margin: 0 !important;
+                color: #ffffff !important;
+                font-size: 13px !important;
+                font-weight: 600 !important;
+            }
 
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
 
-    uploaded_file = st.file_uploader(
-        "Upload an image",
-        type=["jpg", "jpeg", "png", "webp"],
-        label_visibility="collapsed"
-    )
+        uploaded_file = st.file_uploader(
+            "Upload an image",
+            type=["jpg", "jpeg", "png", "webp"],
+            label_visibility="collapsed"
+        )
 
-    upload_category_display = st.selectbox(
-        "📂 Select Category",
-        [
-            category_display[category]
-            for category in category_display
-        ],
-        key="upload_category"
-    )
+        upload_category_display = st.selectbox(
+            "📂 Select Category",
+            [
+                category_display[category]
+                for category in category_display
+            ],
+            key="upload_category"
+        )
 
-    upload_category = next(
-        (
-            key
-            for key, value in category_display.items()
-            if value == upload_category_display
-        ),
-        None
-    )
+        upload_category = next(
+            (
+                key
+                for key, value in category_display.items()
+                if value == upload_category_display
+            ),
+            None
+        )
 
-    if st.button(
-        "📤 Add to Search Engine",
-        use_container_width=True
-    ):
+        if st.button(
+            "📤 Add to Search Engine",
+            use_container_width=True
+        ):
 
-        if uploaded_file is None:
+            if uploaded_file is None:
 
-            st.warning(
-                "Please select an image first."
-            )
-
-        else:
-
-            try:
-
-                with st.spinner(
-                    "Processing image... OCR + AI embeddings"
-                ):
-
-                    upload_result = process_uploaded_image(
-                        uploaded_file,
-                        upload_category
-                    )
-
-                if upload_result["filename_was_changed"]:
-
-                    st.warning(
-                        f"⚠️ {upload_result['original_filename']} already existed.\n\n"
-                        f"Saved as {upload_result['filename']} instead."
-                    )
-
-                else:
- 
-                    st.success(
-                        f"'{upload_result['filename']}' "
-                       "was added successfully!"
-                    )
-
-                if upload_result["ocr_text"]:
-                    st.info(
-                        "OCR text extracted successfully."
-                    )
-
-                    st.caption(
-                        "Extracted OCR: "
-                        + upload_result["ocr_text"]
-                    )
-                else:
-
-                    st.info(
-                        "Image added. No readable text was detected."
-                    )
-
-                st.rerun()
-
-            except Exception as e:
-
-                st.error(
-                    f"Upload failed: {e}"
+                st.warning(
+                    "Please select an image first."
                 )
+
+            else:
+
+                try:
+
+                    with st.spinner(
+                        "Processing image... OCR + AI embeddings"
+                    ):
+
+                        upload_result = process_uploaded_image(
+                            uploaded_file,
+                            upload_category
+                        )
+
+                    if upload_result["filename_was_changed"]:
+
+                        st.warning(
+                            f"⚠️ {upload_result['original_filename']} already existed.\n\n"
+                            f"Saved as {upload_result['filename']} instead."
+                        )
+
+                    else:
+
+                        st.success(
+                            f"'{upload_result['filename']}' "
+                            "was added successfully!"
+                        )
+
+                    if upload_result["ocr_text"]:
+
+                        st.info(
+                            "OCR text extracted successfully."
+                        )
+
+                        st.caption(
+                            "Extracted OCR: "
+                            + upload_result["ocr_text"]
+                        )
+
+                    else:
+
+                        st.info(
+                            "Image added. No readable text was detected."
+                        )
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    st.error(
+                        f"Upload failed: {e}"
+                    )
 
 
     # ========================================================
@@ -1837,7 +1835,6 @@ def semantic_search(
     finally:
 
         del semantic_model
-        release_ai_models()
     similarities = (
         cosine_similarity(
             query_embedding,
@@ -2017,8 +2014,6 @@ def clip_search(
 
         if "similarities" in locals():
             del similarities
-
-        release_ai_models() 
  
 # ============================================================
 # SEARCH EXECUTION 
