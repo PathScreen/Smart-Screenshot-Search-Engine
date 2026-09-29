@@ -9,7 +9,7 @@ https://smart-screenshot-search-engine-hdfwwsszixlnz3uo2bff2z.streamlit.app/
 
 ## 🖼️ Application Preview
 
-<!-- Add your UI screenshot here after confirming its repository path -->
+<img width="1917" height="970" alt="Screenshot 2026-09-30 003913" src="https://github.com/user-attachments/assets/25169878-76a6-4f0f-945f-893ad01d5b75" />
 
 ## 📑 Table of Contents
 
@@ -115,3 +115,96 @@ Make sure the following are installed:
 
 ```bash
 git clone https://github.com/PathScreen/Smart-Screenshot-Search-Engine.git
+```
+
+2. Navigate to the project directory:
+
+```bash
+cd Smart-Screenshot-Search-Engine
+```
+
+3. Install the required dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+## 💻 Usage
+
+Start the Streamlit application:
+
+```bash
+streamlit run UI/app.py
+```
+
+The application will open in the browser.
+
+### Searching
+
+1. Enter a search query.
+2. VisionX processes the query.
+3. Relevant screenshots are retrieved using semantic or visual similarity.
+4. Use category filtering to explore screenshots by category.
+
+### Uploading a Screenshot
+
+1. Select the upload option.
+2. Choose a screenshot.
+3. Select its category.
+4. Upload the screenshot.
+5. VisionX processes the screenshot using OCR, MiniLM, and CLIP.
+6. The screenshot is added to the search indexes.
+
+## 📁 Project Structure
+
+```text
+Smart-Screenshot-Search-Engine/
+│
+├── Data/
+│   ├── Addresses_Locations/
+│   ├── Interior_Design/
+│   ├── Products_Shopping/
+│   ├── Receipts_Bills/
+│   ├── Recipes/
+│   └── Tickets_Bookings/
+│
+├── UI/
+│   └── app.py
+│
+├── requirements.txt
+├── README.md
+└── .gitignore
+```
+
+## 🧠 CNN Classification Experiment
+
+A separate CNN experiment was conducted to study screenshot classification across the six dataset categories.
+
+The CNN experiment is separate from the main semantic and visual retrieval pipeline.
+
+## ⚠️ Limitations
+
+- OCR performance depends on screenshot quality.
+- Large datasets require more computational resources.
+- Search results depend on the available dataset.
+- Semantic search quality depends on query clarity.
+- Visual search depends on the visual similarity between the query and screenshots.
+
+## 🔮 Future Scope
+
+- Automatic screenshot category classification using CNN.
+- Mobile and camera-based screenshot search.
+- Voice and multilingual search.
+- Cloud-based storage and indexing.
+- Improved retrieval models.
+- Continuous learning from newly added screenshots.
+
+## 📚 References
+
+- [EasyOCR](https://github.com/JaidedAI/EasyOCR)
+- [Sentence Transformers](https://www.sbert.net/)
+- [OpenAI CLIP](https://github.com/openai/CLIP)
+- [PyTorch](https://pytorch.org/)
+- [NumPy](https://numpy.org/)
+- [Pandas](https://pandas.pydata.org/)
+- [Streamlit](https://streamlit.io/)
