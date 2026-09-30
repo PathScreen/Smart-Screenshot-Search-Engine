@@ -2460,7 +2460,8 @@ if search_button:
                                 )[:5000], 
                                 height=250, 
                                 disabled=True, 
-                                label_visibility="collapsed" 
+                                label_visibility="collapsed",
+                                key=f"ocr_text_{index}_{row['filename']}"
                             ) 
  
                         else: 
