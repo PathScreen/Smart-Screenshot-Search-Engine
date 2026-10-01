@@ -337,8 +337,9 @@ category_display = {
     "Products_Shopping": "🛍️ Products & Shopping", 
     "Receipts_Bills": "🧾 Receipts & Bills", 
     "Recipes": "🍳 Recipes", 
-    "Tickets_Bookings": "🎟️ Tickets & Bookings" 
-} 
+    "Tickets_Bookings": "🎟️ Tickets & Bookings",
+    "Other_Uncategorized": "📁 Other / Uncategorized"
+}
  
  
 # ============================================================
@@ -1236,7 +1237,7 @@ st.markdown(
  
 st.markdown( 
     '<div class="subtitle">' 
-    'Find what you are looking for across your screenshots.' 
+    'Search your screenshots using text, meaning, and visual content.' 
     '</div>', 
     unsafe_allow_html=True 
 ) 
@@ -1625,8 +1626,7 @@ st.markdown(
  
 st.markdown( 
     '<div class="search-section-subtitle">' 
-    'Search using text, meaning, objects, places, products, ' 
-    'recipes, receipts, tickets, and more.' 
+    'Search screenshots using text, meaning, objects, and visual content.' 
     '</div>', 
     unsafe_allow_html=True 
 ) 
@@ -1764,52 +1764,40 @@ def looks_like_gibberish(text):
 # VISUAL QUERY DETECTION 
 # ============================================================ 
  
-def is_visual_query(text): 
- 
-    words = set( 
-        re.findall( 
-            r"[a-zA-Z]+", 
-            text.lower() 
-        ) 
-    ) 
- 
- 
-    visual_found = ( 
-        words.intersection( 
-            visual_keywords 
-        ) 
-    ) 
- 
- 
-    semantic_words = { 
-        "receipt", "bill", "invoice", 
-        "recipe", "ingredient", 
-        "booking", "ticket", 
-        "address", "location", 
-        "payment", "order", 
-        "confirmation", "hotel", 
-        "flight", "train", "bus", 
-        "shopping", "product" 
-    } 
- 
- 
-    semantic_found = ( 
-        words.intersection( 
-            semantic_words 
-        ) 
-    ) 
- 
- 
-    if ( 
-        visual_found 
-        and not semantic_found 
-    ): 
- 
-        return True 
- 
- 
-    return False 
- 
+def is_visual_query(text):
+
+    words = set(
+        re.findall(
+            r"[a-zA-Z]+",
+            text.lower()
+        )
+    )
+
+    semantic_words = {
+        "receipt", "bill", "invoice",
+        "recipe", "ingredient",
+        "booking", "ticket",
+        "address", "location",
+        "payment", "order",
+        "confirmation", "hotel",
+        "flight", "train", "bus",
+        "shopping", "product",
+        "price", "amount", "total",
+        "date", "time", "number",
+        "email", "contact",
+        "delivery", "discount",
+        "offer", "restaurant",
+        "menu"
+    }
+
+    semantic_found = words.intersection(
+        semantic_words
+    )
+
+    if semantic_found:
+        return False
+
+    return True
  
 # ============================================================
 # SEMANTIC SEARCH 
